@@ -86,10 +86,10 @@
         /* --- 生存模式倒數 (修改位置與大小) --- */
         #survival-countdown {
             position: absolute;
-            top: 35%; /* 向上移，原為 50% */
+            top: 35%; 
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 10vw; /* 縮小，原為 20vw */
+            font-size: 10vw; 
             font-weight: 900;
             color: #ffcc00;
             text-shadow: 0 0 30px #ffcc00;
@@ -184,7 +184,8 @@
             <div id="question-text">準備開始...</div>
         </div>
         
-        <div id="survival-countdown">5</div>
+        <!-- 生存倒數初始值改為 4 -->
+        <div id="survival-countdown">4</div>
     </div>
 
     <!-- 覆蓋層 -->
@@ -284,7 +285,7 @@
         // 模式控制
         let currentMode = 'bumper'; 
         let survivalTimer = 0;
-        const SURVIVAL_PREP_TIME = 5; // 修改：倒數改為 5 秒
+        const SURVIVAL_PREP_TIME = 4; // 修改：倒數改為 4 秒
 
         // 玩家
         const players = {
@@ -509,15 +510,15 @@
                 if(p.y>canvas.height-p.r) {p.y=canvas.height-p.r; p.vy*=-0.5;}
             });
 
-            // 玩家互撞 (強力推擠)
+            // 玩家互撞 (超級強力推擠)
             let dx = players.p2.x - players.p1.x;
             let dy = players.p2.y - players.p1.y;
             let dist = Math.hypot(dx, dy);
             
             if(dist < players.p1.r + players.p2.r) {
                 let angle = Math.atan2(dy, dx);
-                // 修改：加大彈飛力度 (由 1.2 改為 3.0)
-                let push = 3.0; 
+                // 修改：加大彈飛力度 (由 3.0 改為 15.0)
+                let push = 15.0; 
                 let px = Math.cos(angle)*push, py = Math.sin(angle)*push;
                 
                 players.p1.vx -= px; players.p1.vy -= py;
@@ -528,7 +529,7 @@
                 players.p1.x -= Math.cos(angle)*overlap; players.p1.y -= Math.sin(angle)*overlap;
                 players.p2.x += Math.cos(angle)*overlap; players.p2.y += Math.sin(angle)*overlap;
                 
-                shakeScreen(5); // 加大震動
+                shakeScreen(10); // 加大震動
             }
 
             // 模式判定
