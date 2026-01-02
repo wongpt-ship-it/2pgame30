@@ -44,7 +44,7 @@
         #p2-score-box { color: #ff0055; text-shadow: 0 0 20px #ff0055; }
         .player-label { font-size: 1.5vw; opacity: 0.8; }
 
-        /* 倒數計時 */
+        /* 遊戲時間倒數 */
         #timer-box {
             font-size: 5vw;
             color: #fff;
@@ -80,18 +80,19 @@
             text-shadow: 0 0 10px rgba(255,255,255,0.5);
             transition: all 0.3s;
         }
-        /* 撞球模式時題目移到上方，生存模式時置中 */
+        /* 撞球模式時題目移到上方 */
         .bumper-mode-q { top: 20% !important; transform: translate(-50%, 0) !important; }
 
-        /* 3秒生存倒數 */
+        /* --- 生存模式倒數 (修改位置與大小) --- */
         #survival-countdown {
             position: absolute;
-            top: 50%; left: 50%;
+            top: 35%; /* 向上移，原為 50% */
+            left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 20vw;
+            font-size: 10vw; /* 縮小，原為 20vw */
             font-weight: 900;
             color: #ffcc00;
-            text-shadow: 0 0 50px #ffcc00;
+            text-shadow: 0 0 30px #ffcc00;
             display: none;
             z-index: 20;
         }
@@ -183,7 +184,7 @@
             <div id="question-text">準備開始...</div>
         </div>
         
-        <div id="survival-countdown">3</div>
+        <div id="survival-countdown">5</div>
     </div>
 
     <!-- 覆蓋層 -->
@@ -283,7 +284,7 @@
         // 模式控制
         let currentMode = 'bumper'; 
         let survivalTimer = 0;
-        const SURVIVAL_PREP_TIME = 3; 
+        const SURVIVAL_PREP_TIME = 5; // 修改：倒數改為 5 秒
 
         // 玩家
         const players = {
@@ -439,7 +440,7 @@
         function startSurvivalCountdown() {
             survivalTimer = SURVIVAL_PREP_TIME;
             ui.survivalCnt.style.display = 'block';
-            ui.survivalCnt.innerText = "3";
+            ui.survivalCnt.innerText = SURVIVAL_PREP_TIME;
         }
 
         // --- 5. 生成物件 (四角佈局) ---
@@ -508,17 +509,26 @@
                 if(p.y>canvas.height-p.r) {p.y=canvas.height-p.r; p.vy*=-0.5;}
             });
 
-            // 玩家互撞 (推擠)
+            // 玩家互撞 (強力推擠)
             let dx = players.p2.x - players.p1.x;
             let dy = players.p2.y - players.p1.y;
             let dist = Math.hypot(dx, dy);
+            
             if(dist < players.p1.r + players.p2.r) {
                 let angle = Math.atan2(dy, dx);
-                let push = 1.2;
+                // 修改：加大彈飛力度 (由 1.2 改為 3.0)
+                let push = 3.0; 
                 let px = Math.cos(angle)*push, py = Math.sin(angle)*push;
+                
                 players.p1.vx -= px; players.p1.vy -= py;
                 players.p2.vx += px; players.p2.vy += py;
-                shakeScreen(2);
+                
+                // 防止重疊 (增加分離距離)
+                let overlap = (players.p1.r + players.p2.r - dist) / 2 + 1;
+                players.p1.x -= Math.cos(angle)*overlap; players.p1.y -= Math.sin(angle)*overlap;
+                players.p2.x += Math.cos(angle)*overlap; players.p2.y += Math.sin(angle)*overlap;
+                
+                shakeScreen(5); // 加大震動
             }
 
             // 模式判定
@@ -636,9 +646,6 @@
                                 p.score = parseFloat((p.score + 0.3).toFixed(1));
                                 spawnFloatText(p.x, p.y - 40, "+0.3", p.color); // 飄字
                             }
-                        } else {
-                            // 在圈外會被彈開 (為了增加留在圈內的難度)
-                            // 這裡不彈飛，讓他們努力擠進去
                         }
                     });
                 }
