@@ -83,7 +83,7 @@
         /* 撞球模式時題目移到上方 */
         .bumper-mode-q { top: 20% !important; transform: translate(-50%, 0) !important; }
 
-        /* --- 生存模式倒數 (修改位置與大小) --- */
+        /* --- 生存模式倒數 --- */
         #survival-countdown {
             position: absolute;
             top: 35%; 
@@ -184,7 +184,6 @@
             <div id="question-text">準備開始...</div>
         </div>
         
-        <!-- 生存倒數初始值改為 4 -->
         <div id="survival-countdown">4</div>
     </div>
 
@@ -285,7 +284,7 @@
         // 模式控制
         let currentMode = 'bumper'; 
         let survivalTimer = 0;
-        const SURVIVAL_PREP_TIME = 4; // 修改：倒數改為 4 秒
+        const SURVIVAL_PREP_TIME = 4; // 倒數 4 秒
 
         // 玩家
         const players = {
@@ -510,26 +509,25 @@
                 if(p.y>canvas.height-p.r) {p.y=canvas.height-p.r; p.vy*=-0.5;}
             });
 
-            // 玩家互撞 (超級強力推擠)
+            // 玩家互撞 (超級強力推擠 - 15倍力度)
             let dx = players.p2.x - players.p1.x;
             let dy = players.p2.y - players.p1.y;
             let dist = Math.hypot(dx, dy);
             
             if(dist < players.p1.r + players.p2.r) {
                 let angle = Math.atan2(dy, dx);
-                // 修改：加大彈飛力度 (由 3.0 改為 15.0)
                 let push = 15.0; 
                 let px = Math.cos(angle)*push, py = Math.sin(angle)*push;
                 
                 players.p1.vx -= px; players.p1.vy -= py;
                 players.p2.vx += px; players.p2.vy += py;
                 
-                // 防止重疊 (增加分離距離)
+                // 防止重疊
                 let overlap = (players.p1.r + players.p2.r - dist) / 2 + 1;
                 players.p1.x -= Math.cos(angle)*overlap; players.p1.y -= Math.sin(angle)*overlap;
                 players.p2.x += Math.cos(angle)*overlap; players.p2.y += Math.sin(angle)*overlap;
                 
-                shakeScreen(10); // 加大震動
+                shakeScreen(10); 
             }
 
             // 模式判定
@@ -563,7 +561,8 @@
                             spawnFloatText(t.x, t.y, "-1", '#ff0000');
                             shakeScreen(5);
                             updateScoreUI();
-                            t.vx = (t.x-p.x)*0.3; t.vy = (t.y-p.y)*0.3; // 彈飛
+                            // 修改：撞到錯球的反彈力度減小 (0.15)
+                            t.vx = (t.x-p.x)*0.15; t.vy = (t.y-p.y)*0.15; 
                         }
                     }
                 }
@@ -619,9 +618,10 @@
                     spawnParticles(p.x, p.y, '#ffff00', 30);
                     anyCorrect = true;
                 } else {
-                    p.score = Math.max(0, p.score - 1); // 沒站到可以選扣分或不扣，這裡設定扣1分
+                    p.score = Math.max(0, p.score - 1); // 扣1分
                     spawnFloatText(p.x, p.y, "Miss", "#aaa");
-                    p.vx = (Math.random()-0.5)*30; p.vy = (Math.random()-0.5)*30; // 彈飛
+                    // 修改：生存模式答錯的彈飛力度減半 (15)
+                    p.vx = (Math.random()-0.5)*15; p.vy = (Math.random()-0.5)*15; 
                 }
             });
             updateScoreUI();
