@@ -2,182 +2,268 @@
 <html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
-    <title>霓虹數學碰碰車</title>
+    <title>霓虹全能對戰王</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #050510; /* 深色背景 */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #050510;
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
             color: white;
             user-select: none;
         }
+        canvas { display: block; }
 
-        /* 遊戲畫布 */
-        canvas {
-            display: block;
-            box-shadow: 0 0 50px rgba(0, 255, 255, 0.2);
-        }
-
-        /* 頂部 UI 面板 */
-        #ui-layer {
+        /* --- UI 佈局 --- */
+        #hud {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* 讓點擊穿透到 canvas */
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
         }
 
-        /* 題目顯示區 - 大電視優化 */
-        #question-box {
+        /* 頂部資訊列 */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 20px 40px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .score-box {
+            font-size: 4vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #p1-score-box { color: #00f3ff; text-shadow: 0 0 20px #00f3ff; }
+        #p2-score-box { color: #ff0055; text-shadow: 0 0 20px #ff0055; }
+        .player-label { font-size: 1.5vw; opacity: 0.8; }
+
+        /* 中間倒數計時 */
+        #timer-box {
+            font-size: 5vw;
+            color: #fff;
+            background: rgba(0,0,0,0.6);
+            padding: 5px 30px;
+            border-radius: 0 0 20px 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top: none;
+            text-shadow: 0 0 10px white;
+        }
+        .timer-warning { color: #ff3333 !important; animation: pulse 0.5s infinite; }
+
+        /* 題目顯示 */
+        #question-container {
+            position: absolute;
+            top: 15%;
+            width: 100%;
             text-align: center;
-            margin-top: 20px;
-            font-size: 5vw; /* 隨螢幕寬度調整 */
+            pointer-events: none;
+        }
+        #question-text {
+            display: inline-block;
+            font-size: 4vw;
             font-weight: bold;
-            text-shadow: 0 0 20px #fff;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 0;
+            background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.8), rgba(0,0,0,0));
+            padding: 10px 50px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
             border-top: 2px solid rgba(255,255,255,0.2);
             border-bottom: 2px solid rgba(255,255,255,0.2);
         }
 
-        /* 分數板 */
-        .score-board {
+        /* 3秒生存倒數 */
+        #survival-countdown {
             position: absolute;
-            top: 30px;
-            font-size: 4vw;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 15vw;
             font-weight: 900;
-        }
-        #p1-score { 
-            left: 30px; 
-            color: #00f3ff; 
-            text-shadow: 0 0 20px #00f3ff;
-        }
-        #p2-score { 
-            right: 30px; 
-            color: #ff0055; 
-            text-shadow: 0 0 20px #ff0055;
+            color: #ffcc00;
+            text-shadow: 0 0 50px #ffcc00;
+            display: none;
+            z-index: 5;
         }
 
-        /* 開始/結束 畫面 */
+        /* --- 結算/開始 畫面 --- */
         #overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 16, 0.95);
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             pointer-events: auto;
-            z-index: 10;
+            z-index: 100;
+            backdrop-filter: blur(10px);
         }
 
-        h1 {
-            font-size: 6vw;
-            margin: 0;
-            background: linear-gradient(90deg, #00f3ff, #ff0055);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-transform: uppercase;
-            letter-spacing: 5px;
+        /* 結算佈局：左中右 */
+        .result-container {
+            display: flex;
+            width: 90%;
+            height: 80%;
+            gap: 20px;
+        }
+        
+        .result-col {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
-        p {
-            font-size: 2vw;
-            margin: 20px 0;
+        .result-p1 { border-color: #00f3ff; box-shadow: 0 0 20px rgba(0,243,255,0.2); }
+        .result-p2 { border-color: #ff0055; box-shadow: 0 0 20px rgba(255,0,85,0.2); }
+        .result-center { flex: 1.2; background: rgba(0,0,0,0.3); }
+
+        h2 { margin: 0 0 20px 0; font-size: 2.5vw; text-transform: uppercase; }
+        .big-score { font-size: 8vw; font-weight: 900; margin: auto; }
+        
+        /* 排行榜列表 */
+        .leaderboard-list {
+            width: 100%;
+            text-align: left;
+            font-size: 1.2vw;
             color: #ccc;
         }
+        .lb-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .lb-rank { width: 30px; font-weight: bold; color: #ffcc00; }
+        .lb-name { flex: 1; text-align: center;}
+        .lb-score { width: 50px; text-align: right; color: white; }
 
-        .btn {
-            padding: 15px 40px;
+        /* 輸入名字 */
+        #winner-input-section {
+            margin-top: 20px;
+            text-align: center;
+            display: none; /* 獲勝才顯示 */
+        }
+        input {
+            background: transparent;
+            border: 2px solid white;
+            color: white;
             font-size: 2vw;
+            padding: 5px;
+            text-align: center;
+            width: 150px;
+            text-transform: uppercase;
+        }
+        
+        button {
+            margin-top: 20px;
+            padding: 10px 40px;
+            font-size: 1.5vw;
             background: white;
-            color: black;
             border: none;
+            font-weight: bold;
             cursor: pointer;
             border-radius: 50px;
-            font-weight: bold;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-            transition: transform 0.2s;
         }
+        button:hover { transform: scale(1.05); box-shadow: 0 0 15px white; }
 
-        .btn:hover {
-            transform: scale(1.1);
-        }
-
-        .controls-info {
-            display: flex;
-            gap: 100px;
-            margin-top: 50px;
-            text-align: center;
-        }
-        .key-group {
-            border: 2px solid rgba(255,255,255,0.2);
-            padding: 20px;
-            border-radius: 10px;
-        }
-        .key {
-            display: inline-block;
-            background: #333;
-            padding: 5px 10px;
-            border-radius: 5px;
-            border-bottom: 3px solid #111;
-            font-family: monospace;
-            font-size: 1.5vw;
-        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
 
-    <!-- 遊戲 UI 層 -->
-    <div id="ui-layer">
-        <div id="p1-score">P1: 0</div>
-        <div id="question-box">準備開始...</div>
-        <div id="p2-score">P2: 0</div>
-    </div>
-
-    <!-- 遊戲主畫布 -->
     <canvas id="gameCanvas"></canvas>
 
-    <!-- 覆蓋層 (開始/結束) -->
-    <div id="overlay">
-        <h1>霓虹數學競技場</h1>
-        <p>撞擊正確答案的球體得分！還可以把對手撞開！</p>
-        
-        <div class="controls-info">
-            <div class="key-group" style="color: #00f3ff;">
-                <h3>P1 (藍隊)</h3>
-                <span class="key">W</span> <span class="key">A</span> <span class="key">S</span> <span class="key">D</span>
-                <br>移動
+    <div id="hud">
+        <div class="top-bar">
+            <div class="score-box" id="p1-score-box">
+                <span class="player-label">P1 藍隊</span>
+                <span id="p1-score">0</span>
             </div>
-            <div class="key-group" style="color: #ff0055;">
-                <h3>P2 (紅隊)</h3>
-                <span class="key">↑</span> <span class="key">←</span> <span class="key">↓</span> <span class="key">→</span>
-                <br>移動
+            <div id="timer-box">60</div>
+            <div class="score-box" id="p2-score-box">
+                <span class="player-label">P2 紅隊</span>
+                <span id="p2-score">0</span>
             </div>
         </div>
+        <div id="question-container">
+            <div id="question-text">準備開始...</div>
+        </div>
+        <div id="survival-countdown">3</div>
+    </div>
 
-        <br><br>
-        <button class="btn" onclick="startGame()">開始對戰</button>
+    <!-- 結算/開始介面 -->
+    <div id="overlay">
+        <!-- 開始畫面 -->
+        <div id="start-screen" style="text-align:center;">
+            <h1 style="font-size:5vw; color:white; text-shadow:0 0 30px #00f3ff; margin-bottom:10px;">霓虹全能對戰王</h1>
+            <p style="font-size:1.5vw; color:#aaa;">P1: WASD | P2: 方向鍵</p>
+            <p style="color:#ffcc00;">包含運算、圖形判斷、生存搶答題！</p>
+            <button onclick="startGame()">開始遊戲 (60秒)</button>
+        </div>
+
+        <!-- 結束畫面 -->
+        <div id="end-screen" class="result-container" style="display:none;">
+            <!-- P1 結果 -->
+            <div class="result-col result-p1">
+                <h2>P1 藍隊</h2>
+                <div class="big-score" id="end-p1-score">0</div>
+                <div id="p1-win-msg" style="display:none; color:#00f3ff; font-weight:bold; font-size:2vw;">WINNER</div>
+            </div>
+
+            <!-- 排行榜 -->
+            <div class="result-col result-center">
+                <h2>TOP 10 排行榜</h2>
+                <div class="leaderboard-list" id="lb-list">
+                    <!-- JS 生成 -->
+                </div>
+                
+                <div id="winner-input-section">
+                    <p style="margin:5px;">恭喜獲勝！輸入名字：</p>
+                    <input type="text" id="winner-name" maxlength="5" placeholder="AAA">
+                    <button onclick="submitScore()">儲存並重玩</button>
+                </div>
+                <div id="replay-btn-section" style="display:none; text-align:center;">
+                    <button onclick="location.reload()">再玩一次</button>
+                </div>
+            </div>
+
+            <!-- P2 結果 -->
+            <div class="result-col result-p2">
+                <h2>P2 紅隊</h2>
+                <div class="big-score" id="end-p2-score">0</div>
+                <div id="p2-win-msg" style="display:none; color:#ff0055; font-weight:bold; font-size:2vw;">WINNER</div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // --- 遊戲設定 ---
+        // --- 初始化 & 設定 ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const questionBox = document.getElementById('question-box');
-        const p1ScoreEl = document.getElementById('p1-score');
-        const p2ScoreEl = document.getElementById('p2-score');
-        const overlay = document.getElementById('overlay');
+        const uiElements = {
+            timer: document.getElementById('timer-box'),
+            qText: document.getElementById('question-text'),
+            p1Score: document.getElementById('p1-score'),
+            p2Score: document.getElementById('p2-score'),
+            survivalCnt: document.getElementById('survival-countdown'),
+            overlay: document.getElementById('overlay'),
+            startScreen: document.getElementById('start-screen'),
+            endScreen: document.getElementById('end-screen'),
+            endP1: document.getElementById('end-p1-score'),
+            endP2: document.getElementById('end-p2-score'),
+            inputSection: document.getElementById('winner-input-section'),
+            winnerInput: document.getElementById('winner-name'),
+            replaySection: document.getElementById('replay-btn-section'),
+            lbList: document.getElementById('lb-list')
+        };
 
-        // 適應螢幕尺寸
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -185,335 +271,482 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // 遊戲狀態
-        let gameRunning = false;
-        let currentQuestion = {};
-        let balls = [];
-        let particles = [];
-        let shakeFrames = 0; // 螢幕震動計數
-
-        // 玩家物件
+        // 遊戲變數
+        let gameState = 'start'; // start, playing, end
+        let gameTime = 60;
+        let timerInterval;
+        let shakeFrames = 0;
+        let currentMode = 'bumper'; // 'bumper' (撞球) 或 'survival' (搶地盤)
+        let survivalTimer = 0; // 生存模式倒數
+        let survivalMaxTime = 3; // 3秒
+        
+        // 玩家資料
         const players = {
             p1: { x: 0, y: 0, r: 25, color: '#00f3ff', score: 0, vx: 0, vy: 0, keys: {u:'w', d:'s', l:'a', r:'d'} },
             p2: { x: 0, y: 0, r: 25, color: '#ff0055', score: 0, vx: 0, vy: 0, keys: {u:'ArrowUp', d:'ArrowDown', l:'ArrowLeft', r:'ArrowRight'} }
         };
-
-        // 按鍵監聽 (解決衝突用)
         const keysPressed = {};
         window.addEventListener('keydown', (e) => keysPressed[e.key] = true);
         window.addEventListener('keyup', (e) => keysPressed[e.key] = false);
 
-        // --- 數學邏輯 ---
+        // 物件池
+        let targets = []; // 可能是球 (bumper) 或 區域 (survival)
+        let particles = [];
+        let currentQData = {};
+
+        // --- 題目生成系統 ---
+        // 這裡定義題目類型，包含運算、邏輯、圖形
         function generateQuestion() {
-            const types = ['+', '-', 'x'];
-            const type = types[Math.floor(Math.random() * types.length)];
-            let a, b, ans;
+            // 隨機決定模式：30% 機率是生存模式 (圖形/判斷)，70% 是撞球運算
+            const isSurvival = Math.random() < 0.3;
+            currentMode = isSurvival ? 'survival' : 'bumper';
 
-            if (type === 'x') {
-                a = Math.floor(Math.random() * 9) + 1; // 1-9
-                b = Math.floor(Math.random() * 9) + 1;
-                ans = a * b;
-            } else if (type === '-') {
-                a = Math.floor(Math.random() * 20) + 10;
-                b = Math.floor(Math.random() * 10) + 1;
-                ans = a - b;
+            // 清空舊目標
+            targets = [];
+
+            if (currentMode === 'bumper') {
+                // --- 撞球模式題目 ---
+                const type = Math.random();
+                let qStr = "", ans = 0;
+                
+                if (type < 0.4) { // 加減乘
+                    const op = ['+', '-', 'x'][Math.floor(Math.random()*3)];
+                    let a = Math.floor(Math.random()*12)+1;
+                    let b = Math.floor(Math.random()*12)+1;
+                    if(op === '-') a += b; // 確保正數
+                    qStr = `${a} ${op === 'x' ? '×' : op} ${b} = ?`;
+                    ans = (op==='+') ? a+b : (op=='-') ? a-b : a*b;
+                } else if (type < 0.7) { // 數列
+                    let start = Math.floor(Math.random()*5)+1;
+                    let diff = Math.floor(Math.random()*4)+2;
+                    qStr = `${start}, ${start+diff}, ${start+diff*2}, ?`;
+                    ans = start+diff*3;
+                } else { // 因數/倍數 (簡化顯示)
+                    let base = Math.floor(Math.random()*5)+3;
+                    let isMultiple = Math.random() < 0.5;
+                    if (isMultiple) {
+                        qStr = `找出 ${base} 的倍數`;
+                        ans = base * (Math.floor(Math.random()*3)+2);
+                    } else {
+                        // 因數 (找能整除的)
+                        ans = base; // 答案是 base
+                        let bigNum = base * (Math.floor(Math.random()*3)+2);
+                        qStr = `找出 ${bigNum} 的因數`;
+                    }
+                }
+                
+                uiElements.qText.innerText = qStr;
+                spawnBumperBalls(ans);
+
             } else {
-                a = Math.floor(Math.random() * 20) + 1;
-                b = Math.floor(Math.random() * 20) + 1;
-                ans = a + b;
+                // --- 生存模式題目 (幾何/判斷) ---
+                // 在這模式下，Target 不是球，而是地上的光圈
+                let qType = Math.floor(Math.random() * 3); // 0:角度, 1:比較, 2:IQ
+                let qStr = "";
+                let options = []; // { type: 'text'/'shape', val: ... , isCorrect: bool }
+
+                if (qType === 0) {
+                    qStr = "快！停在「直角」上！";
+                    options = [
+                        { type: 'angle', val: 90, isCorrect: true },
+                        { type: 'angle', val: 45, isCorrect: false },
+                        { type: 'angle', val: 135, isCorrect: false }
+                    ];
+                } else if (qType === 1) {
+                    qStr = "哪個是「鈍角三角形」？";
+                     options = [
+                        { type: 'tri', val: 'obtuse', isCorrect: true }, // 鈍角
+                        { type: 'tri', val: 'acute', isCorrect: false }, // 銳角
+                        { type: 'tri', val: 'right', isCorrect: false }  // 直角
+                    ];
+                } else {
+                    qStr = "找出最大的數字！";
+                    let v1 = Math.floor(Math.random()*50);
+                    let v2 = Math.floor(Math.random()*50);
+                    let v3 = Math.floor(Math.random()*50) + 100; // 最大
+                    options = [
+                        { type: 'text', val: v1, isCorrect: false },
+                        { type: 'text', val: v2, isCorrect: false },
+                        { type: 'text', val: v3, isCorrect: true }
+                    ];
+                }
+
+                uiElements.qText.innerText = qStr;
+                startSurvivalRound(options);
             }
-
-            // 更新 UI
-            questionBox.innerText = `${a} ${type === 'x' ? '×' : type} ${b} = ?`;
-            questionBox.style.transform = "scale(1.2)";
-            setTimeout(() => questionBox.style.transform = "scale(1)", 200);
-
-            return { ans: ans };
         }
 
-        function spawnBalls(correctAnswer) {
-            balls = [];
-            const numBalls = 5; // 總共幾顆球
-            const positions = [];
-
-            // 生成隨機答案 (包含一個正確的)
-            let answers = [correctAnswer];
-            while(answers.length < numBalls) {
-                let wrong = correctAnswer + Math.floor(Math.random() * 10) - 5;
-                if(wrong !== correctAnswer && wrong > 0 && !answers.includes(wrong)) {
-                    answers.push(wrong);
-                }
+        function spawnBumperBalls(correctVal) {
+            // 生成 5 顆球，物理碰撞
+            let answers = [correctVal];
+            while(answers.length < 5) {
+                let w = correctVal + Math.floor(Math.random()*20)-10;
+                if(w !== correctVal && w > 0 && !answers.includes(w)) answers.push(w);
             }
-            // 打亂陣列
             answers.sort(() => Math.random() - 0.5);
 
-            for (let i = 0; i < numBalls; i++) {
-                balls.push({
-                    x: Math.random() * (canvas.width - 100) + 50,
-                    y: Math.random() * (canvas.height - 200) + 150, // 避開頂部 UI
-                    r: 30, // 球半徑
-                    value: answers[i],
-                    vx: (Math.random() - 0.5) * 2, // 緩慢移動
-                    vy: (Math.random() - 0.5) * 2,
-                    color: answers[i] === correctAnswer ? '#ffffff' : '#aaaaaa' // 這裡不提示誰是正確的，玩家要自己算
+            answers.forEach(val => {
+                targets.push({
+                    x: Math.random() * (canvas.width - 200) + 100,
+                    y: Math.random() * (canvas.height - 300) + 200,
+                    r: 35,
+                    val: val,
+                    isCorrect: val === correctVal,
+                    vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
+                    type: 'ball'
                 });
-            }
+            });
         }
 
-        // --- 遊戲核心迴圈 ---
+        function startSurvivalRound(options) {
+            // 生成 2-3 個固定區域 (Zone)
+            options = options.sort(() => Math.random() - 0.5); // 打亂位置
+            
+            // 根據螢幕寬度分佈
+            const step = canvas.width / (options.length + 1);
+            
+            options.forEach((opt, idx) => {
+                targets.push({
+                    x: step * (idx + 1),
+                    y: canvas.height * 0.6,
+                    r: 120, // 初始半徑大
+                    maxR: 120,
+                    val: opt.val,
+                    drawType: opt.type, // angle, tri, text
+                    isCorrect: opt.isCorrect,
+                    vx: 0, vy: 0,
+                    type: 'zone'
+                });
+            });
+
+            // 開始倒數邏輯
+            survivalTimer = survivalMaxTime;
+            uiElements.survivalCnt.style.display = 'block';
+            uiElements.survivalCnt.innerText = "3";
+        }
+
+        // --- 遊戲邏輯 ---
         function startGame() {
-            players.p1.x = canvas.width * 0.25;
-            players.p1.y = canvas.height * 0.5;
-            players.p1.score = 0;
-            players.p2.x = canvas.width * 0.75;
-            players.p2.y = canvas.height * 0.5;
-            players.p2.score = 0;
+            players.p1.score = 0; players.p2.score = 0;
+            players.p1.x = canvas.width*0.2; players.p1.y = canvas.height/2;
+            players.p2.x = canvas.width*0.8; players.p2.y = canvas.height/2;
             
-            p1ScoreEl.innerText = "P1: 0";
-            p2ScoreEl.innerText = "P2: 0";
-            overlay.style.display = 'none';
-            gameRunning = true;
+            gameTime = 60;
+            gameState = 'playing';
             
-            nextRound();
+            uiElements.startScreen.style.display = 'none';
+            uiElements.endScreen.style.display = 'none';
+            uiElements.overlay.style.display = 'none';
+            updateScoreUI();
+
+            timerInterval = setInterval(() => {
+                gameTime--;
+                uiElements.timer.innerText = gameTime;
+                if(gameTime <= 10) uiElements.timer.classList.add('timer-warning');
+                else uiElements.timer.classList.remove('timer-warning');
+
+                if(gameTime <= 0) endGame();
+            }, 1000);
+
+            generateQuestion();
             requestAnimationFrame(gameLoop);
         }
 
-        function nextRound() {
-            currentQuestion = generateQuestion();
-            spawnBalls(currentQuestion.ans);
+        function endGame() {
+            clearInterval(timerInterval);
+            gameState = 'end';
+            uiElements.overlay.style.display = 'flex';
+            uiElements.startScreen.style.display = 'none';
+            uiElements.endScreen.style.display = 'flex';
+            uiElements.survivalCnt.style.display = 'none';
+
+            // 更新結算分數
+            uiElements.endP1.innerText = players.p1.score;
+            uiElements.endP2.innerText = players.p2.score;
+
+            // 判斷贏家
+            let winner = null;
+            document.getElementById('p1-win-msg').style.display = 'none';
+            document.getElementById('p2-win-msg').style.display = 'none';
+            
+            if (players.p1.score > players.p2.score) {
+                winner = 'P1';
+                document.getElementById('p1-win-msg').style.display = 'block';
+            } else if (players.p2.score > players.p1.score) {
+                winner = 'P2';
+                document.getElementById('p2-win-msg').style.display = 'block';
+            }
+
+            renderLeaderboard();
+
+            if (winner) {
+                uiElements.inputSection.style.display = 'block';
+                uiElements.replaySection.style.display = 'none';
+                window.winningScore = Math.max(players.p1.score, players.p2.score);
+            } else {
+                uiElements.inputSection.style.display = 'none';
+                uiElements.replaySection.style.display = 'block';
+            }
         }
 
         function updatePlayer(p) {
-            // 加速度
-            const speed = 0.8;
-            const friction = 0.92; // 摩擦力，製造滑行感
-
+            const speed = 1.0;
+            const friction = 0.92;
             if (keysPressed[p.keys.u]) p.vy -= speed;
             if (keysPressed[p.keys.d]) p.vy += speed;
             if (keysPressed[p.keys.l]) p.vx -= speed;
             if (keysPressed[p.keys.r]) p.vx += speed;
 
-            p.vx *= friction;
-            p.vy *= friction;
-            p.x += p.vx;
-            p.y += p.vy;
+            p.vx *= friction; p.vy *= friction;
+            p.x += p.vx; p.y += p.vy;
 
-            // 邊界檢查
+            // 邊界
             if (p.x < p.r) { p.x = p.r; p.vx *= -0.5; }
-            if (p.x > canvas.width - p.r) { p.x = canvas.width - p.r; p.vx *= -0.5; }
-            if (p.y < p.r + 80) { p.y = p.r + 80; p.vy *= -0.5; } // 避開頂部分數
-            if (p.y > canvas.height - p.r) { p.y = canvas.height - p.r; p.vy *= -0.5; }
+            if (p.x > canvas.width-p.r) { p.x = canvas.width-p.r; p.vx *= -0.5; }
+            if (p.y < p.r+100) { p.y = p.r+100; p.vy *= -0.5; }
+            if (p.y > canvas.height-p.r) { p.y = canvas.height-p.r; p.vy *= -0.5; }
+        }
+
+        function updateGame() {
+            if (currentMode === 'survival') {
+                // 生存模式：處理倒數與縮圈
+                survivalTimer -= 1/60; // 假設 60fps
+                let displaySec = Math.ceil(survivalTimer);
+                if (displaySec > 0) uiElements.survivalCnt.innerText = displaySec;
+
+                // 縮圈效果
+                targets.forEach(t => {
+                    if (t.type === 'zone') {
+                        // 3秒內縮小到 50%
+                        let progress = Math.max(0, survivalTimer / survivalMaxTime);
+                        t.r = t.maxR * (0.5 + 0.5 * progress); 
+                    }
+                });
+
+                if (survivalTimer <= 0) {
+                    // 時間到！結算位置
+                    uiElements.survivalCnt.style.display = 'none';
+                    checkSurvivalResult();
+                    shakeScreen(15);
+                    generateQuestion(); // 下一題
+                }
+            }
+        }
+
+        function checkSurvivalResult() {
+            // 檢查誰在正確圈內
+            [players.p1, players.p2].forEach(p => {
+                let safe = false;
+                targets.forEach(t => {
+                    if (t.isCorrect) {
+                        let dist = Math.hypot(p.x - t.x, p.y - t.y);
+                        if (dist < t.r) safe = true;
+                    }
+                });
+
+                if (safe) {
+                    p.score += 5; // 生存題分數較高
+                    createFloatingText(p.x, p.y, "+5", p.color);
+                    createParticles(p.x, p.y, '#ffff00', 20);
+                } else {
+                    // 處罰被撞飛
+                    p.vx = (Math.random()-0.5)*30;
+                    p.vy = (Math.random()-0.5)*30;
+                    createFloatingText(p.x, p.y, "Miss!", "#fff");
+                }
+            });
+            updateScoreUI();
         }
 
         function checkCollisions() {
-            // 1. 玩家互撞 (簡單彈性碰撞)
-            const dx = players.p2.x - players.p1.x;
-            const dy = players.p2.y - players.p1.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
+            // P1 vs P2 (推擠)
+            let dx = players.p2.x - players.p1.x;
+            let dy = players.p2.y - players.p1.y;
+            let dist = Math.hypot(dx, dy);
             if (dist < players.p1.r + players.p2.r) {
-                // 交換速度並加上反彈力
-                const tempVx = players.p1.vx;
-                const tempVy = players.p1.vy;
-                players.p1.vx = players.p2.vx - dx * 0.05;
-                players.p1.vy = players.p2.vy - dy * 0.05;
-                players.p2.vx = tempVx + dx * 0.05;
-                players.p2.vy = tempVy + dy * 0.05;
+                // 物理彈開
+                let angle = Math.atan2(dy, dx);
+                let force = 1.0; 
+                let pushX = Math.cos(angle) * force;
+                let pushY = Math.sin(angle) * force;
                 
-                // 產生撞擊火花
-                createParticles((players.p1.x + players.p2.x)/2, (players.p1.y + players.p2.y)/2, '#ffff00', 10);
-                shakeScreen(5);
+                players.p1.vx -= pushX; players.p1.vy -= pushY;
+                players.p2.vx += pushX; players.p2.vy += pushY;
+                
+                // 防止重疊
+                let overlap = (players.p1.r + players.p2.r - dist) / 2;
+                players.p1.x -= Math.cos(angle) * overlap;
+                players.p1.y -= Math.sin(angle) * overlap;
+                players.p2.x += Math.cos(angle) * overlap;
+                players.p2.y += Math.sin(angle) * overlap;
             }
 
-            // 2. 玩家撞球
-            [players.p1, players.p2].forEach((p, index) => {
-                for (let i = balls.length - 1; i >= 0; i--) {
-                    const b = balls[i];
-                    const bdx = b.x - p.x;
-                    const bdy = b.y - p.y;
-                    const bDist = Math.sqrt(bdx*bdx + bdy*bdy);
+            // 僅在 Bumper 模式下檢測撞球
+            if (currentMode === 'bumper') {
+                [players.p1, players.p2].forEach(p => {
+                    for (let i = targets.length - 1; i >= 0; i--) {
+                        let t = targets[i];
+                        if (t.type !== 'ball') continue;
 
-                    if (bDist < p.r + b.r) {
-                        // 撞到了
-                        if (b.value === currentQuestion.ans) {
-                            // 答對
-                            p.score++;
-                            updateScoreUI();
-                            createParticles(b.x, b.y, '#00ff00', 30); // 綠色大量粒子
-                            createFloatingText(b.x, b.y, "+1", p.color);
-                            shakeScreen(10);
-                            nextRound(); // 直接下一題
-                            return; // 結束迴圈以免重複觸發
-                        } else {
-                            // 答錯
-                            p.score = Math.max(0, p.score - 1); // 扣分
-                            updateScoreUI();
-                            createParticles(b.x, b.y, '#ff0000', 10); // 紅色粒子
-                            createFloatingText(b.x, b.y, "-1", '#ff0000');
-                            shakeScreen(5);
-                            
-                            // 簡單把球彈開
-                            b.vx = (b.x - p.x) * 0.2;
-                            b.vy = (b.y - p.y) * 0.2;
+                        let d = Math.hypot(p.x - t.x, p.y - t.y);
+                        if (d < p.r + t.r) {
+                            if (t.isCorrect) {
+                                p.score += 2; // 普通題 2 分
+                                updateScoreUI();
+                                createParticles(t.x, t.y, '#00ff00', 30);
+                                createFloatingText(t.x, t.y, "+2", p.color);
+                                shakeScreen(10);
+                                generateQuestion(); // 下一題
+                                return;
+                            } else {
+                                p.score = Math.max(0, p.score - 1);
+                                updateScoreUI();
+                                createParticles(t.x, t.y, '#ff0000', 10);
+                                createFloatingText(t.x, t.y, "-1", '#ff0000');
+                                shakeScreen(5);
+                                t.vx = (t.x - p.x) * 0.2;
+                                t.vy = (t.y - p.y) * 0.2;
+                            }
                         }
                     }
-                }
-            });
-        }
-
-        function updateScoreUI() {
-            p1ScoreEl.innerText = `P1: ${players.p1.score}`;
-            p2ScoreEl.innerText = `P2: ${players.p2.score}`;
-            
-            // 獲勝判定 (例如先到 10 分)
-            if (players.p1.score >= 10 || players.p2.score >= 10) {
-                gameRunning = false;
-                let winner = players.p1.score >= 10 ? "P1 藍隊" : "P2 紅隊";
-                let color = players.p1.score >= 10 ? "#00f3ff" : "#ff0055";
-                
-                overlay.style.display = 'flex';
-                overlay.innerHTML = `
-                    <h1 style="color:${color}">${winner} 獲勝！</h1>
-                    <p>最終比分: ${players.p1.score} - ${players.p2.score}</p>
-                    <button class="btn" onclick="location.reload()">再玩一次</button>
-                `;
-            }
-        }
-
-        // --- 視覺特效系統 ---
-        function createParticles(x, y, color, count) {
-            for(let i=0; i<count; i++) {
-                particles.push({
-                    x: x, y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 1.0,
-                    color: color
                 });
             }
         }
 
-        let floatingTexts = [];
-        function createFloatingText(x, y, text, color) {
-            floatingTexts.push({x, y, text, color, life: 1.0});
+        function updateScoreUI() {
+            uiElements.p1Score.innerText = players.p1.score;
+            uiElements.p2Score.innerText = players.p2.score;
         }
 
-        function shakeScreen(intensity) {
-            shakeFrames = intensity;
-        }
-
-        // --- 繪圖 ---
+        // --- 繪圖系統 ---
         function draw() {
-            // 清除畫面 (考慮震動)
-            let tx = 0, ty = 0;
-            if (shakeFrames > 0) {
-                tx = (Math.random() - 0.5) * 10;
-                ty = (Math.random() - 0.5) * 10;
-                shakeFrames--;
-            }
-            
+            let tx=0, ty=0;
+            if(shakeFrames>0) { tx=(Math.random()-0.5)*10; ty=(Math.random()-0.5)*10; shakeFrames--; }
             ctx.save();
             ctx.translate(tx, ty);
-            ctx.clearRect(-20, -20, canvas.width+40, canvas.height+40);
+            ctx.clearRect(0,0, canvas.width, canvas.height);
 
-            // 畫地板網格 (裝飾)
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-            ctx.lineWidth = 1;
-            const gridSize = 100;
-            for(let x=0; x<canvas.width; x+=gridSize) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
-            for(let y=0; y<canvas.height; y+=gridSize) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+            // 背景網格
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth=1;
+            for(let i=0; i<canvas.width; i+=100) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+            for(let i=0; i<canvas.height; i+=100) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
 
-            // 畫球 (答案)
-            balls.forEach(b => {
-                // 更新球位置
-                b.x += b.vx; b.y += b.vy;
-                if(b.x<b.r || b.x>canvas.width-b.r) b.vx *= -1;
-                if(b.y<b.r+80 || b.y>canvas.height-b.r) b.vy *= -1;
+            // 繪製目標 (球或區域)
+            targets.forEach(t => {
+                if (t.type === 'ball') {
+                    // 撞球模式：移動
+                    t.x += t.vx; t.y += t.vy;
+                    if(t.x<t.r || t.x>canvas.width-t.r) t.vx*=-1;
+                    if(t.y<t.r+150 || t.y>canvas.height-t.r) t.vy*=-1;
 
-                // 畫球體
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-                ctx.fillStyle = '#222'; // 球底色
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, t.r, 0, Math.PI*2);
+                    ctx.fillStyle = '#222';
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 24px Arial';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(t.val, t.x, t.y);
 
-                // 畫數字
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 24px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(b.value, b.x, b.y);
+                } else if (t.type === 'zone') {
+                    // 生存模式：地上光圈
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, t.r, 0, Math.PI*2);
+                    ctx.fillStyle = t.isCorrect ? 'rgba(0,255,0,0.1)' : 'rgba(255,0,0,0.1)'; // 正式版不該提示顏色，這裡為了Debug先留著，實作時應該要統一顏色
+                    // 修正：全部統一顏色，玩家要看內容判斷
+                    ctx.fillStyle = 'rgba(255, 255, 0, 0.1)'; 
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffff00';
+                    ctx.lineWidth = 5;
+                    ctx.stroke();
+
+                    // 畫內容 (文字或圖形)
+                    drawZoneContent(t);
+                }
             });
 
             // 畫玩家
             [players.p1, players.p2].forEach(p => {
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = p.color;
-                
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 20; ctx.shadowColor = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+                ctx.fillStyle = p.color; ctx.fill();
+                // 箭頭
+                let angle = (Math.abs(p.vx)+Math.abs(p.vy)<0.1) ? -Math.PI/2 : Math.atan2(p.vy, p.vx);
+                ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.arc(p.x+Math.cos(angle)*15, p.y+Math.sin(angle)*15, 8, 0, Math.PI*2);
                 ctx.fill();
-                
-                // 車頭方向指示
-                ctx.beginPath();
-                ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                let angle = Math.atan2(p.vy, p.vx);
-                if (Math.abs(p.vx) < 0.1 && Math.abs(p.vy) < 0.1) angle = -Math.PI/2; // 靜止時朝上
-                ctx.arc(p.x + Math.cos(angle)*15, p.y + Math.sin(angle)*15, 8, 0, Math.PI*2);
-                ctx.fill();
-                
                 ctx.shadowBlur = 0;
             });
 
-            // 畫粒子
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life -= 0.02;
-                if (p.life <= 0) {
-                    particles.splice(i, 1);
-                    continue;
-                }
-                ctx.globalAlpha = p.life;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, 5, 5);
-                ctx.globalAlpha = 1;
-            }
-
-            // 畫浮動文字
-            for (let i = floatingTexts.length - 1; i >= 0; i--) {
-                let ft = floatingTexts[i];
-                ft.y -= 1;
-                ft.life -= 0.02;
-                if (ft.life <= 0) {
-                    floatingTexts.splice(i, 1);
-                    continue;
-                }
-                ctx.globalAlpha = ft.life;
-                ctx.font = "bold 40px Arial";
-                ctx.fillStyle = ft.color;
-                ctx.fillText(ft.text, ft.x, ft.y);
-                ctx.globalAlpha = 1;
-            }
+            // 畫粒子與浮動文字
+            drawEffects();
 
             ctx.restore();
         }
 
-        function gameLoop() {
-            if (!gameRunning) return;
-            
-            updatePlayer(players.p1);
-            updatePlayer(players.p2);
-            checkCollisions();
-            draw();
-            
-            requestAnimationFrame(gameLoop);
+        // 輔助繪圖：畫幾何圖形
+        function drawZoneContent(t) {
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+
+            if (t.drawType === 'text') {
+                ctx.font = 'bold 40px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(t.val, t.x, t.y);
+            } 
+            else if (t.drawType === 'angle') {
+                // 畫角度
+                ctx.beginPath();
+                ctx.moveTo(t.x + 30, t.y); // 基線
+                ctx.lineTo(t.x - 20, t.y); // 原點
+                if (t.val === 90) ctx.lineTo(t.x - 20, t.y - 50); // 直角
+                else if (t.val === 45) ctx.lineTo(t.x + 20, t.y - 40); // 銳角
+                else if (t.val === 135) ctx.lineTo(t.x - 50, t.y - 30); // 鈍角
+                ctx.stroke();
+                
+                // 標示弧線
+                ctx.beginPath();
+                ctx.arc(t.x-20, t.y, 15, 0, (t.val===90)? -Math.PI/2 : (t.val===45)? -0.6 : -2.5, true);
+                ctx.stroke();
+            }
+            else if (t.drawType === 'tri') {
+                // 畫三角形
+                ctx.beginPath();
+                if (t.val === 'right') { // 直角三角
+                    ctx.moveTo(t.x-20, t.y+20); ctx.lineTo(t.x+20, t.y+20); ctx.lineTo(t.x-20, t.y-30); 
+                } else if (t.val === 'acute') { // 正三角(銳角)
+                    ctx.moveTo(t.x-25, t.y+20); ctx.lineTo(t.x+25, t.y+20); ctx.lineTo(t.x, t.y-30);
+                } else if (t.val === 'obtuse') { // 鈍角三角
+                    ctx.moveTo(t.x-30, t.y+20); ctx.lineTo(t.x+40, t.y+20); ctx.lineTo(t.x-10, t.y-20);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
         }
 
-    </script>
-</body>
-</html>
+        function drawEffects() {
+            particles.forEach((p, i) => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+                if(p.life>0) { ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x, p.y, 5, 5); }
+                else particles.splice(i,1);
+            });
+            ctx.globalAlpha = 1;
+
+            floatingTexts.forEach((ft, i) => {
+                ft.y -= 1; ft.life -= 0.02;
+                if(ft.life>0) { 
+                    ctx.globalAlpha=ft.life; ctx.font="bold 40px Arial"; ctx.fillStyle=ft.color; 
+                    ctx.fillText(ft.text, ft.x, ft.y); 
+                } else floatingTexts.splice(i,1);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        let floatingTexts = [];
+        function createFloatingText(x, y, text, color) { floatingTexts.push({x, y, text, color, life: 1.0}); }
+        function createParticles(x, y, color, count)
