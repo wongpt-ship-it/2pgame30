@@ -270,8 +270,9 @@
         const SURVIVAL_PREP_TIME = 4; // 4秒倒數
 
         // 題目控制
-        let questionCounter = 0; // 用於計算 2撞擊 1生存
-        let lastBumperType = ''; // 避免連續重複
+        let questionCounter = 0; 
+        let lastBumperType = ''; 
+        let questionHistory = new Set(); // 記錄出過的題目 ID
 
         const players = {
             p1: { x: 0, y: 0, r: 25, color: '#00f3ff', score: 0, vx: 0, vy: 0, keys: {u:'w', d:'s', l:'a', r:'d'} },
@@ -298,6 +299,7 @@
             specialEventTriggered = false;
             questionCounter = 0;
             lastBumperType = '';
+            questionHistory.clear();
             
             ui.timer.classList.remove('timer-warning');
             ui.startScreen.style.display = 'none';
@@ -307,7 +309,7 @@
             updateScoreUI();
             
             gameState = 'playing';
-            generateQuestion(); // 初始題目
+            generateQuestion(); 
             
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(gameTimerLogic, 1000);
@@ -336,8 +338,6 @@
             if (gameTime < 5 && specialEventTriggered) return;
 
             questionCounter++;
-            
-            // 邏輯: 2題撞擊, 1題生存 (1,2撞擊 -> 3生存 -> 4,5撞擊 -> 6生存...)
             let isSurvivalTurn = (questionCounter % 3 === 0);
 
             if (isSurvivalTurn) {
@@ -360,121 +360,167 @@
             targets = []; 
         }
 
+        // --- Bumper 題庫生成 ---
         function generateBumperQuestion() {
-            // 類型: 加減(add_sub), 乘除(mul_div), 數列(series)
-            // 確保不連續兩題相同
             let types = ['add_sub', 'mul_div', 'series'];
-            let type;
+            let type, qStr, ans, qID;
+            let attempts = 0;
+
+            // 嘗試生成不重覆的題目 (最多試10次，避免死循環)
             do {
-                type = types[Math.floor(Math.random() * types.length)];
-            } while (type === lastBumperType);
-            lastBumperType = type;
+                attempts++;
+                // 隨機選類型 (不與上題相同)
+                do {
+                    type = types[Math.floor(Math.random() * types.length)];
+                } while (type === lastBumperType);
 
-            let qStr = "", ans = 0;
-
-            if (type === 'add_sub') {
-                let op = Math.random() < 0.5 ? '+' : '-';
-                let a = Math.floor(Math.random()*15)+5;
-                let b = Math.floor(Math.random()*15)+1;
-                if(op==='-') a += b; // 確保正數
-                qStr = `${a} ${op} ${b} = ?`;
-                ans = (op==='+') ? a+b : a-b;
-            } 
-            else if (type === 'mul_div') {
-                let op = Math.random() < 0.5 ? 'x' : '÷';
-                if(op==='x') {
-                    let a = Math.floor(Math.random()*9)+2;
-                    let b = Math.floor(Math.random()*9)+2;
-                    qStr = `${a} × ${b} = ?`;
-                    ans = a*b;
-                } else {
-                    let b = Math.floor(Math.random()*9)+2;
-                    let a = b * (Math.floor(Math.random()*9)+2);
-                    qStr = `${a} ÷ ${b} = ?`;
-                    ans = a/b;
+                if (type === 'add_sub') {
+                    let op = Math.random() < 0.5 ? '+' : '-';
+                    let a = Math.floor(Math.random()*15)+5;
+                    let b = Math.floor(Math.random()*15)+1;
+                    if(op==='-') a += b; 
+                    qStr = `${a} ${op} ${b} = ?`;
+                    ans = (op==='+') ? a+b : a-b;
+                    qID = `bum_${op}_${a}_${b}`;
+                } 
+                else if (type === 'mul_div') {
+                    let op = Math.random() < 0.5 ? 'x' : '÷';
+                    if(op==='x') {
+                        let a = Math.floor(Math.random()*9)+2;
+                        let b = Math.floor(Math.random()*9)+2;
+                        qStr = `${a} × ${b} = ?`;
+                        ans = a*b;
+                        qID = `bum_x_${a}_${b}`;
+                    } else {
+                        let b = Math.floor(Math.random()*9)+2;
+                        let a = b * (Math.floor(Math.random()*9)+2);
+                        qStr = `${a} ÷ ${b} = ?`;
+                        ans = a/b;
+                        qID = `bum_div_${a}_${b}`;
+                    }
+                } 
+                else if (type === 'series') {
+                    let start = Math.floor(Math.random()*10)+1;
+                    let diff = Math.floor(Math.random()*5)+2;
+                    qStr = `${start}, ${start+diff}, ${start+diff*2}, ?`;
+                    ans = start + diff*3;
+                    qID = `bum_seq_${start}_${diff}`;
                 }
-            } 
-            else if (type === 'series') {
-                let start = Math.floor(Math.random()*10)+1;
-                let diff = Math.floor(Math.random()*5)+2;
-                qStr = `${start}, ${start+diff}, ${start+diff*2}, ?`;
-                ans = start + diff*3;
-            }
+            } while (questionHistory.has(qID) && attempts < 10);
 
+            questionHistory.add(qID);
+            lastBumperType = type;
             ui.qText.innerText = qStr;
             spawnBalls(ans);
         }
 
+        // --- Survival 題庫生成 ---
         function generateSurvivalQuestion() {
-            // 類型: 倍數(multiple), 角度(angle), 時鐘(time)
             let types = ['multiple', 'angle', 'time'];
             let type = types[Math.floor(Math.random()*types.length)];
-            let qStr = "", opts = [];
+            let qStr = "", opts = [], qID;
+            let attempts = 0;
 
-            if (type === 'multiple') {
-                let base = Math.floor(Math.random()*4)+3; // 3,4,5,6
-                qStr = `找出 ${base} 的倍數`;
-                let correct = base * (Math.floor(Math.random()*5)+2);
-                opts = [
-                    {val: correct, isCorrect: true, type: 'text'},
-                    {val: correct+1, isCorrect: false, type: 'text'},
-                    {val: correct-1, isCorrect: false, type: 'text'},
-                    {val: correct+2, isCorrect: false, type: 'text'}
-                ];
-            } 
-            else if (type === 'angle') {
-                let subType = Math.floor(Math.random()*3); // 0:直, 1:銳, 2:鈍
-                if(subType===0) {
-                    qStr = "找出「直角」";
+            do {
+                attempts++;
+                if (type === 'multiple') {
+                    let base = Math.floor(Math.random()*4)+3; 
+                    let correct = base * (Math.floor(Math.random()*5)+2);
+                    qID = `sur_mul_${base}_${correct}`;
+                    qStr = `找出 ${base} 的倍數`;
+                    
+                    // 生成唯一正確答案的選項
+                    let wrong1 = generateNonMultiple(base);
+                    let wrong2 = generateNonMultiple(base);
+                    let wrong3 = generateNonMultiple(base);
+                    
+                    // 確保錯的也不重覆
+                    while(wrong2 === wrong1) wrong2 = generateNonMultiple(base);
+                    while(wrong3 === wrong1 || wrong3 === wrong2) wrong3 = generateNonMultiple(base);
+
                     opts = [
-                        {val: 90, isCorrect: true, type: 'angle'},
-                        {val: 45, isCorrect: false, type: 'angle'},
-                        {val: 135, isCorrect: false, type: 'angle'},
-                        {val: 30, isCorrect: false, type: 'angle'}
+                        {val: correct, isCorrect: true, type: 'text'},
+                        {val: wrong1, isCorrect: false, type: 'text'},
+                        {val: wrong2, isCorrect: false, type: 'text'},
+                        {val: wrong3, isCorrect: false, type: 'text'}
                     ];
-                } else if(subType===1) {
-                    qStr = "找出「銳角」";
+                } 
+                else if (type === 'angle') {
+                    let subType = Math.floor(Math.random()*3); // 0:直, 1:銳, 2:鈍
+                    qID = `sur_ang_${subType}`;
+                    
+                    if(subType===0) {
+                        qStr = "找出「直角」";
+                        opts = [
+                            {val: 90, isCorrect: true, type: 'angle'},
+                            {val: 45, isCorrect: false, type: 'angle'},
+                            {val: 135, isCorrect: false, type: 'angle'},
+                            {val: 30, isCorrect: false, type: 'angle'}
+                        ];
+                    } else if(subType===1) {
+                        qStr = "找出「銳角」";
+                        opts = [
+                            {val: 45, isCorrect: true, type: 'angle'},
+                            {val: 90, isCorrect: false, type: 'angle'},
+                            {val: 135, isCorrect: false, type: 'angle'},
+                            {val: 100, isCorrect: false, type: 'angle'}
+                        ];
+                    } else {
+                        qStr = "找出「鈍角」";
+                        opts = [
+                            {val: 135, isCorrect: true, type: 'angle'},
+                            {val: 90, isCorrect: false, type: 'angle'},
+                            {val: 45, isCorrect: false, type: 'angle'},
+                            {val: 30, isCorrect: false, type: 'angle'}
+                        ];
+                    }
+                } 
+                else if (type === 'time') {
+                    let h = Math.floor(Math.random()*12)+1;
+                    let m = (Math.floor(Math.random()*4)*15); 
+                    qID = `sur_time_${h}_${m}`;
+                    qStr = `哪個時鐘是 ${h}:${m===0?'00':m} ?`;
+                    
+                    let correctTime = {h:h, m:m};
+                    let wrongTimes = [];
+                    
+                    // 生成不重覆的錯誤時間
+                    while(wrongTimes.length < 3) {
+                        let wh = Math.floor(Math.random()*12)+1;
+                        let wm = (Math.floor(Math.random()*4)*15);
+                        // 確保不等於正確時間
+                        if(wh === h && wm === m) continue;
+                        
+                        // 確保不等於已有的錯誤時間
+                        let duplicate = false;
+                        for(let wt of wrongTimes) {
+                            if(wt.h === wh && wt.m === wm) duplicate = true;
+                        }
+                        if(!duplicate) wrongTimes.push({h:wh, m:wm});
+                    }
+
                     opts = [
-                        {val: 45, isCorrect: true, type: 'angle'},
-                        {val: 90, isCorrect: false, type: 'angle'},
-                        {val: 135, isCorrect: false, type: 'angle'},
-                        {val: 100, isCorrect: false, type: 'angle'}
-                    ];
-                } else {
-                    qStr = "找出「鈍角」";
-                    opts = [
-                        {val: 135, isCorrect: true, type: 'angle'},
-                        {val: 90, isCorrect: false, type: 'angle'},
-                        {val: 45, isCorrect: false, type: 'angle'},
-                        {val: 30, isCorrect: false, type: 'angle'}
+                        {val: correctTime, isCorrect: true, type: 'time'},
+                        {val: wrongTimes[0], isCorrect: false, type: 'time'},
+                        {val: wrongTimes[1], isCorrect: false, type: 'time'},
+                        {val: wrongTimes[2], isCorrect: false, type: 'time'}
                     ];
                 }
-            } 
-            else if (type === 'time') {
-                let h = Math.floor(Math.random()*12)+1;
-                let m = (Math.floor(Math.random()*4)*15); // 0, 15, 30, 45
-                qStr = `哪個時鐘是 ${h}:${m===0?'00':m} ?`;
-                
-                // 產生一個正確時間，三個錯誤時間
-                let correctTime = {h:h, m:m};
-                let wrongTimes = [];
-                while(wrongTimes.length < 3) {
-                    let wh = Math.floor(Math.random()*12)+1;
-                    let wm = (Math.floor(Math.random()*4)*15);
-                    if(wh!==h || wm!==m) wrongTimes.push({h:wh, m:wm});
-                }
+            } while (questionHistory.has(qID) && attempts < 5);
 
-                opts = [
-                    {val: correctTime, isCorrect: true, type: 'time'},
-                    {val: wrongTimes[0], isCorrect: false, type: 'time'},
-                    {val: wrongTimes[1], isCorrect: false, type: 'time'},
-                    {val: wrongTimes[2], isCorrect: false, type: 'time'}
-                ];
-            }
-
+            questionHistory.add(qID);
             ui.qText.innerText = qStr;
             spawnZones(opts);
             startSurvivalCountdown();
+        }
+
+        // 輔助：生成非倍數
+        function generateNonMultiple(base) {
+            let r;
+            do {
+                r = Math.floor(Math.random() * 30) + 1;
+            } while (r % base === 0 || r === 0);
+            return r;
         }
 
         function triggerSpecialRound() {
@@ -505,8 +551,11 @@
             targets = [];
             let vals = [ans];
             while(vals.length < 5) {
-                let r = ans + Math.floor(Math.random()*10)-5;
-                if(r!==ans && r>0 && !vals.includes(r)) vals.push(r);
+                let r = ans + Math.floor(Math.random()*14) - 7;
+                // 確保不等於答案，且大於0，且不與已生成的重複
+                if(r !== ans && r > 0 && !vals.includes(r)) {
+                    vals.push(r);
+                }
             }
             vals.sort(()=>Math.random()-0.5);
 
@@ -788,7 +837,7 @@
                 ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI*2); 
                 ctx.strokeStyle = '#fff'; ctx.lineWidth=2; ctx.stroke();
                 
-                // 刻度 (12, 3, 6, 9)
+                // 刻度
                 for(let i=0; i<4; i++) {
                     let ang = i * Math.PI/2;
                     ctx.beginPath();
@@ -801,18 +850,14 @@
                 let h = t.val.h;
                 let m = t.val.m;
                 
-                // 時針角度 (每小時30度，每分0.5度) - 減90度修正Canvas座標
                 let hAng = ((h % 12) + m/60) * 30 * Math.PI/180 - Math.PI/2;
-                // 分針角度 (每分6度)
                 let mAng = m * 6 * Math.PI/180 - Math.PI/2;
 
-                // 畫時針
                 ctx.lineWidth = 4;
                 ctx.beginPath(); ctx.moveTo(t.x, t.y);
                 ctx.lineTo(t.x + Math.cos(hAng)*(r*0.5), t.y + Math.sin(hAng)*(r*0.5));
                 ctx.stroke();
 
-                // 畫分針
                 ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.moveTo(t.x, t.y);
                 ctx.lineTo(t.x + Math.cos(mAng)*(r*0.8), t.y + Math.sin(mAng)*(r*0.8));
